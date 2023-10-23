@@ -1,10 +1,80 @@
 import random
+import time
+
 import librosa
 import math
-import skimage.io as img
+import pyautogui as key
 from PIL import Image, ImageOps, ImageFilter
 import ctypes
 import numpy as np
+import os
+import sys
+import smtplib
+from smtplib import *
+from email.message import EmailMessage
+import clipboard as c
+
+
+def cambiar_idioma(opc):
+    global msg_txt_1
+    global msg_txt_2
+    global msg_txt_3
+    global msg_txt_4
+
+    if opc == False:
+        msg_txt_1 = ("Cuando acepte este mensaje, se abrirá una ventana, por favor, envienos el archivo Resultados")
+        msg_txt_2 = (".txt que se encuentra ahí a la siguiente dirección de correo: lumiereproyect@gmail.com" + "\n" + "(También se ha copiado al portapapeles la dirección de correo)" +
+                     "\n" + "Por favor, tenga en cuenta que dispone de 1 minuto para envir el archivo o copiarlo en otra ruta antes que sea eliminado")
+        msg_txt_3 = ("Gracias!")
+        msg_txt_4 = ("Ruta donde se encuentra el archivo")
+    else:
+        msg_txt_1 = ("When you accept this message, a new window will be opened, please, send us the file Resultados")
+        msg_txt_2 = (".txt located there to the following email address: lumiereproyect@gmail.com" + "\n" + "(The email address has also been copied to the clipboard)"+
+                     "\n" + "Please, be aware that you have 1 minute to send the file or to copy the file to another path before the log is deleted")
+        msg_txt_3 = ("Thanks!")
+        msg_txt_4 = ("Path where is located the log file")
+
+def sending_mail(ruta, id, dir):
+
+    msg = EmailMessage()
+
+    my_address = "lumiereproyect@gmail.com"  # sender address
+
+    app_generated_password = "vxugqorxdalgykzg"  # gmail generated password
+
+    msg["Subject"] = "Resultados simulación"  # email subject
+
+    msg["From"] = my_address  # sender address
+
+    msg["To"] = my_address  # reciver address
+
+    msg.set_content("Resultados simulación \n" + ruta)  # message body
+
+    with open(ruta, 'rb') as f:
+        file_data = f.read()
+    msg.add_attachment(file_data, maintype='text', subtype='plain', filename = "Resultados"+id)
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(my_address, app_generated_password)
+            server.send_message(msg)
+    except Exception as err:
+        error = err
+        tipo_err = type(err)
+        key.alert(msg_txt_1 + id + msg_txt_2 + os.linesep + msg_txt_3,
+                  msg_txt_4)
+        # copio la direccion de correo al portapapeles
+        c.copy("lumiereproyect@gmail.com")
+        # abro la ventana donde está el archivo
+        os.startfile(dir)
+        #demoro la ejecucion un minuto para que pueda copiar
+        time.sleep(60)
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 
 def trae_imagen():
@@ -13,9 +83,8 @@ def trae_imagen():
                        "globos.jpg", "tiger-jpg.jpg", "field-jpg.jpg", "bosque.jpg", "girasol.jpg", "cielo.jpg"]
     # cargo aleatoriamente la imagen de base"
     ind1 = random.randint(0, len(nombre_imagenes) - 1)
-    imagen1 = Image.open(nombre_imagenes[ind1])
+    imagen1 = Image.open(os.path.join(resource_path("img"), nombre_imagenes[ind1]))
     return imagen1
-
 
 def iguala_dim_imgs(imagen1, imagen2):
     # sacando mayor ancho
@@ -94,7 +163,7 @@ def fusiona_varias_imgs(par):
 
 def musica_amplitud_a_color(par):
     # Paquetes necesarios para la exploración de datos
-    audio = 'la-vida-es-un-carnaval-ringtones-.mp3'
+    audio = os.path.join(resource_path("sound"),'la-vida-es-un-carnaval-ringtones-.mp3')
 
     # decodifica el archivo de audio en un arreglo unidimensional y, sample_rates guarda la frecuencia de muestreo
     y, sampling_rate = librosa.load(audio)
@@ -124,8 +193,8 @@ def musica_amplitud_a_color(par):
         #a cada pixel le corresponde una muestra (sobraran muestras).
         #de ese pixel, el color rojo será la primera muestra de ese rango, el color verde sera la muestra del medio y el color azul la última muestra de ese rango
 
-        for i in range(0, im.size[0] - 1):
-            for j in range(0, im.size[1] - 1):
+        for i in range(0, im.size[0] - 3):
+            for j in range(0, im.size[1] - 3):
                 # asigno valores de pixeles
                 rojo = X_dB[i, j]
                 verde = X_dB[i, j] + 1
@@ -142,8 +211,8 @@ def musica_amplitud_a_color(par):
                 im_modif.putpixel((i, j), (rojo, verde, azul))
     else:   #hay más pixeles que muestras
             #se cambian pixeles hasta que terminen las muestras de audio
-        for i in range(0, X_dB.size[0] - 1):
-            for j in range(0, X_dB.size[1] - 1):
+        for i in range(0, X_dB.size[0] - 3):
+            for j in range(0, X_dB.size[1] - 3):
                 # asigno valores de pixeles
                 rojo = X_dB[i, j]
                 verde = X_dB[i, j] + 1
@@ -562,5 +631,16 @@ def efecto_zoom(par):
         frame = ctypes.cast(par, ctypes.py_object).value
         imagen1 = Image.fromarray(frame)
 
-    imagen1 = imagen1.filter(ImageFilter.GaussianBlur(radius=20))
-    return imagen1
+    factor_red = 8
+
+    # sacando dimensiones de imagen original
+    height, width = imagen1.size
+
+    # resizing image
+    new_image = imagen1.resize((int(height / factor_red), int(width / factor_red)), resample=Image.BILINEAR)
+
+    # Perform the zoom
+    imagen2 = new_image.resize((imagen1.size), Image.NEAREST)
+
+    return imagen2
+
